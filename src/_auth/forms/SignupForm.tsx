@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
@@ -17,12 +17,16 @@ import { Input } from "@/components/ui/input"
 import { SignupValidation } from "@/lib/validation"
 import Loader from "@/components/shared/Loader"
 import { userCreateUserAccount , useSignInAccount } from "@/lib/react-query/queriesAndMutations"
+import { useUserContext } from "@/context/AuthContext"
 
 const SignupForm = () => {
   const { toast } = useToast()
+  const navigate = useNavigate()
+  const { checkAuthUser, isLoading: isUserLoading } = useUserContext() ;
 
-  const { mutateAsync: createUserAccount, isLoading : isCreatingUser } = userCreateUserAccount()
-  const { mutateAsync: signInAccount, isLoading : isSigningIn } = useSignInAccount()
+
+  const { mutateAsync: createUserAccount, isPending : isCreatingUser } = userCreateUserAccount()
+  const { mutateAsync: signInAccount, isPending : isSigningIn } = useSignInAccount()
 
   const form = useForm<z.infer<typeof SignupValidation>>({
     resolver: zodResolver(SignupValidation),
@@ -36,19 +40,33 @@ const SignupForm = () => {
  
   async function onSubmit(values: z.infer<typeof SignupValidation>) {
     const newUser = await createUserAccount(values)
-
     if(!newUser) {
       return toast({
         title: "Sign Up Failed. Please Try Again.",
       })
 
-      const session = await signInAccount({email: values.email, password: values.password})
+      
+    }
 
-      if(!session) {
-        return toast({
-          title: "Sign In Failed. Please Try Again.",
-        })
-      }
+    const session = await signInAccount({email: values.email, password: values.password})
+
+    if(!session) {
+      toast({
+        title: "Sign In Failed. Please Try Again.",
+      })
+      navigate('/sign-in')
+      return ;
+    }
+
+    const isLoggedIn = await checkAuthUser()
+
+    if(isLoggedIn) {
+      form.reset()
+      navigate('/')
+    } else {
+      return toast({
+        title: "Sign In Failed. Please Try Again.",
+      })
     }
 
     console.log(newUser)
